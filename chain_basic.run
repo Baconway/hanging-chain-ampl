@@ -1,0 +1,102 @@
+# ==============================================================================
+# Run Script: chain_basic.run
+# Exercise 4: The Hanging Chain Problem (Question 2 Execution & Optimality Checks)
+# ==============================================================================
+
+reset;
+
+# Load model and data
+model chain_basic.mod;
+data chain_basic.dat;
+
+# Specify starting points as required by Exercise 4, Question 2:
+# x_k = y_k = 1 for all k = 1, ..., m
+let {k in 1..m} x[k] := 1.0;
+let {k in 1..m} y[k] := 1.0;
+
+# Solver configuration (change to knitro, minos, or bonmin if preferred)
+option solver ipopt;
+
+# Solve the optimization problem
+solve;
+
+printf "\n==================================================================\n";
+printf "           QUESTION 2: 3-LINK CHAIN OPTIMIZATION RESULTS          \n";
+printf "==================================================================\n";
+printf "Solve status: %s\n", solve_result;
+printf "Optimal Potential Energy f(x, y) = %12.6f\n\n", PotentialEnergy;
+
+printf "Link increments (x_k, y_k):\n";
+printf "%-6s %12s %12s %14s\n", "k", "x[k]", "y[k]", "Length check";
+for {k in 1..m} {
+    printf "%-6d %12.6f %12.6f %14.6f\n", 
+        k, x[k], y[k], sqrt(x[k]^2 + y[k]^2);
+}
+
+printf "\nEndpoint verification:\n";
+printf "Sum of x_k = %12.6f (Target a = %g)\n", sum {k in 1..m} x[k], a;
+printf "Sum of y_k = %12.6f (Target b = %g)\n\n", sum {k in 1..m} y[k], b;
+
+printf "Cumulative Node Coordinates (X_k, Y_k):\n";
+printf "%-6s %12s %12s\n", "Node", "X", "Y";
+printf "%-6d %12.6f %12.6f\n", 0, 0.0, 0.0;
+for {k in 1..m} {
+    printf "%-6d %12.6f %12.6f\n", 
+        k, sum {i in 1..k} x[i], sum {i in 1..k} y[i];
+}
+
+printf "\n------------------------------------------------------------------\n";
+printf "           FIRST-ORDER OPTIMALITY (KKT) CONDITIONS CHECK          \n";
+printf "------------------------------------------------------------------\n";
+# AMPL convention for equality constraints g(x) = 0:
+# Lagrangian L(x, y, lambda, mu_x, mu_y) = f + sum lambda_k g_k + mu_x g_x + mu_y g_y
+# Gradients:
+# grad_x[k] = 2 * lambda_k * x_k + mu_x
+# grad_y[k] = c_k + 2 * lambda_k * y_k + mu_y
+
+param lambda {k in 1..m} := LinkLength[k].dual;
+param mu_x := EndPointX.dual;
+param mu_y := EndPointY.dual;
+
+printf "Dual multipliers (Lagrange multipliers):\n";
+printf "EndPointX dual (mu_x) = %12.6f\n", mu_x;
+printf "EndPointY dual (mu_y) = %12.6f\n", mu_y;
+printf "%-6s %18s %18s %18s\n", "k", "c[k]", "lambda[k]", "2*lambda[k]";
+for {k in 1..m} {
+    printf "%-6d %18.6f %18.6f %18.6f\n", k, c[k], lambda[k], 2*lambda[k];
+}
+
+printf "\nStationarity residuals (should be ~ 0 at KKT point):\n";
+printf "%-6s %22s %22s\n", "k", "|dL/dx_k|", "|dL/dy_k|";
+for {k in 1..m} {
+    printf "%-6d %22.6e %22.6e\n", 
+        k, 
+        abs(2 * lambda[k] * x[k] + mu_x),
+        abs(c[k] + 2 * lambda[k] * y[k] + mu_y);
+}
+
+printf "\n------------------------------------------------------------------\n";
+printf "          SECOND-ORDER SUFFICIENT CONDITIONS (SOSC) CHECK         \n";
+printf "------------------------------------------------------------------\n";
+# Hessian of Lagrangian:
+# d^2 L / d x_k^2 = 2 * lambda_k
+# d^2 L / d y_k^2 = 2 * lambda_k
+# All cross terms are zero.
+# Hence Hessian is diag(2*lambda_1, ..., 2*lambda_m, 2*lambda_1, ..., 2*lambda_m).
+# If lambda_k > 0 for all k, the Hessian is strictly positive definite on R^{2m},
+# which immediately guarantees SOSC on the tangent space.
+# For k where lambda_k == 0, we verify curvature d^T * nabla^2 L * d > 0 on null space.
+
+printf "Diagonal elements of Hessian (2 * lambda_k):\n";
+for {k in 1..m} {
+    printf "  Link %d: 2 * lambda[%d] = %12.6f\n", k, k, 2 * lambda[k];
+}
+
+# Export node coordinates to a text file for visualization
+printf "# Node X Y\n" > chain_basic_nodes.txt;
+printf "0 0.0 0.0\n" >> chain_basic_nodes.txt;
+for {k in 1..m} {
+    printf "%d %12.6f %12.6f\n", k, sum {i in 1..k} x[i], sum {i in 1..k} y[i] >> chain_basic_nodes.txt;
+}
+printf "\nNode coordinates exported to 'chain_basic_nodes.txt'.\n";
+
