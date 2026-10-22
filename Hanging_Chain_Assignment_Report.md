@@ -215,9 +215,13 @@ for {k in 1..m} {
 }
 
 # Optimality checks
-param lambda {k in 1..m} := LinkLength[k].dual;
-param mu_x := EndPointX.dual;
-param mu_y := EndPointY.dual;
+param lambda {1..m};
+param mu_x;
+param mu_y;
+
+let {k in 1..m} lambda[k] := -LinkLength[k].dual;
+let mu_x := -EndPointX.dual;
+let mu_y := -EndPointY.dual;
 
 printf "\n--- KKT MULTIPLIERS & RESIDUALS ---\n";
 printf "mu_x = %10.6f, mu_y = %10.6f\n", mu_x, mu_y;

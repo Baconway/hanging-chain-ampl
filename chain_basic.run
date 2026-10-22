@@ -1,28 +1,18 @@
-# ==============================================================================
-# Run Script: chain_basic.run
-# Exercise 4: The Hanging Chain Problem (Question 2 Execution & Optimality Checks)
-# ==============================================================================
-
 reset;
 
-# Load model and data
 model chain_basic.mod;
 data chain_basic.dat;
 
-# Specify starting points as required by Exercise 4, Question 2:
-# x_k = y_k = 1 for all k = 1, ..., m
+# starts
 let {k in 1..m} x[k] := 1.0;
 let {k in 1..m} y[k] := 1.0;
 
 # Solver configuration (change to knitro, minos, or bonmin if preferred)
 option solver ipopt;
 
-# Solve the optimization problem
 solve;
 
-printf "\n==================================================================\n";
 printf "           QUESTION 2: 3-LINK CHAIN OPTIMIZATION RESULTS          \n";
-printf "==================================================================\n";
 printf "Solve status: %s\n", solve_result;
 printf "Optimal Potential Energy f(x, y) = %12.6f\n\n", PotentialEnergy;
 
@@ -45,18 +35,27 @@ for {k in 1..m} {
         k, sum {i in 1..k} x[i], sum {i in 1..k} y[i];
 }
 
-printf "\n------------------------------------------------------------------\n";
 printf "           FIRST-ORDER OPTIMALITY (KKT) CONDITIONS CHECK          \n";
-printf "------------------------------------------------------------------\n";
 # AMPL convention for equality constraints g(x) = 0:
 # Lagrangian L(x, y, lambda, mu_x, mu_y) = f + sum lambda_k g_k + mu_x g_x + mu_y g_y
-# Gradients:
-# grad_x[k] = 2 * lambda_k * x_k + mu_x
-# grad_y[k] = c_k + 2 * lambda_k * y_k + mu_y
+# Notice that AMPL defines constraint.dual for minimize f s.t. g(x) = 0 with a
+# minus sign in the Lagrangian: L = f - sum dual_i * g_i(x).
+# Therefore, our mathematical multipliers (+ sign convention) are -constraint.dual:
+#   lambda_k = -LinkLength[k].dual
+#   mu_x     = -EndPointX.dual
+#   mu_y     = -EndPointY.dual
+#
+# Also note: In AMPL, 'param p := expr;' defines a formula parameter, which cannot
+# reference variable or constraint suffixes (.dual). Instead, declare the parameters
+# first and assign their values using 'let' (or use Constraint.dual directly).
 
-param lambda {k in 1..m} := LinkLength[k].dual;
-param mu_x := EndPointX.dual;
-param mu_y := EndPointY.dual;
+param lambda {1..m};
+param mu_x;
+param mu_y;
+
+let {k in 1..m} lambda[k] := -LinkLength[k].dual;
+let mu_x := -EndPointX.dual;
+let mu_y := -EndPointY.dual;
 
 printf "Dual multipliers (Lagrange multipliers):\n";
 printf "EndPointX dual (mu_x) = %12.6f\n", mu_x;
@@ -75,9 +74,7 @@ for {k in 1..m} {
         abs(c[k] + 2 * lambda[k] * y[k] + mu_y);
 }
 
-printf "\n------------------------------------------------------------------\n";
 printf "          SECOND-ORDER SUFFICIENT CONDITIONS (SOSC) CHECK         \n";
-printf "------------------------------------------------------------------\n";
 # Hessian of Lagrangian:
 # d^2 L / d x_k^2 = 2 * lambda_k
 # d^2 L / d y_k^2 = 2 * lambda_k
@@ -99,4 +96,3 @@ for {k in 1..m} {
     printf "%d %12.6f %12.6f\n", k, sum {i in 1..k} x[i], sum {i in 1..k} y[i] >> chain_basic_nodes.txt;
 }
 printf "\nNode coordinates exported to 'chain_basic_nodes.txt'.\n";
-
