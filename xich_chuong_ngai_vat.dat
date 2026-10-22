@@ -1,0 +1,21 @@
+# ==============================================================================
+# Dữ liệu: xich_chuong_ngai_vat.dat
+# Bài tập 4: Bài toán dây xích treo (Thông số cơ sở cho Câu 3)
+# ==============================================================================
+
+# Thông số dây xích:
+# Chiều dài L = 3 với 10 mắt xích, điểm cuối bên phải cố định tại (a, b) = (2, 0)
+param so_mat_xich := 10;
+param chieu_dai := 3.0;
+param toa_do_a := 2.0;
+param toa_do_b := 0.0;
+
+# Thông số chướng ngại vật: obst(x) = chieu_cao_h * exp( - (x - tam_mu)^2 / phuong_sai ) - do_dich_nu
+param chieu_cao_h := 1.5;
+param tam_mu := 1.0;
+param phuong_sai := 0.1;
+param do_dich_nu := 2.0;
+
+# Số khoảng chia rời rạc trên mỗi mắt xích
+param so_diem_chia := 20;
+

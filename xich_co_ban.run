@@ -1,0 +1,105 @@
+# ==============================================================================
+# Kịch bản thực thi: xich_co_ban.run
+# Bài tập 4: Bài toán dây xích treo (Thực thi Câu 2 & Kiểm tra điều kiện tối ưu)
+# ==============================================================================
+
+reset;
+
+# Nạp mô hình và dữ liệu
+model xich_co_ban.mod;
+data xich_co_ban.dat;
+
+# Thiết lập điểm khởi tạo theo yêu cầu của Bài tập 4, Câu 2:
+# x_k = y_k = 1 với mọi k = 1, ..., m
+let {k in 1..so_mat_xich} x[k] := 1.0;
+let {k in 1..so_mat_xich} y[k] := 1.0;
+
+# Cấu hình bộ giải (có thể đổi sang knitro, minos, hoặc bonmin nếu muốn)
+option solver ipopt;
+
+# Giải bài toán tối ưu hóa
+solve;
+
+printf "\n==================================================================\n";
+printf "        CÂU 2: KẾT QUẢ TỐI ƯU HÓA DÂY XÍCH 3 MẮT XÍCH             \n";
+printf "==================================================================\n";
+printf "Trạng thái giải: %s\n", solve_result;
+printf "Thế năng tối ưu f(x, y) = %12.6f\n\n", TheNang;
+
+printf "Độ tăng tọa độ của từng mắt xích (x_k, y_k):\n";
+printf "%-6s %12s %12s %18s\n", "k", "x[k]", "y[k]", "Kiểm tra độ dài";
+for {k in 1..so_mat_xich} {
+    printf "%-6d %12.6f %12.6f %18.6f\n", 
+        k, x[k], y[k], sqrt(x[k]^2 + y[k]^2);
+}
+
+printf "\nKiểm tra tọa độ điểm đầu cuối:\n";
+printf "Tổng x_k = %12.6f (Mục tiêu a = %g)\n", sum {k in 1..so_mat_xich} x[k], toa_do_a;
+printf "Tổng y_k = %12.6f (Mục tiêu b = %g)\n\n", sum {k in 1..so_mat_xich} y[k], toa_do_b;
+
+printf "Tọa độ tích lũy của các khớp nối (X_k, Y_k):\n";
+printf "%-6s %12s %12s\n", "Khớp", "X", "Y";
+printf "%-6d %12.6f %12.6f\n", 0, 0.0, 0.0;
+for {k in 1..so_mat_xich} {
+    printf "%-6d %12.6f %12.6f\n", 
+        k, sum {i in 1..k} x[i], sum {i in 1..k} y[i];
+}
+
+printf "\n------------------------------------------------------------------\n";
+printf "       KIỂM TRA ĐIỀU KIỆN TỐI ƯU BẬC NHẤT (ĐIỀU KIỆN KKT)        \n";
+printf "------------------------------------------------------------------\n";
+# Quy ước dấu nhân tử đối ngẫu (.dual) của AMPL đối với bài toán cực tiểu hóa có ràng buộc đẳng thức g(x) = 0:
+# Hàm Lagrange theo quy ước chuẩn: L = f - sum lambda_k g_k - mu_x g_x - mu_y g_y
+# Đạo hàm riêng (Gradient) theo biến quyết định:
+# dL/dx[k] = - 2 * lambda_k * x_k - mu_x = 0
+# dL/dy[k] = c_k - 2 * lambda_k * y_k - mu_y = 0
+
+# Khai báo các tham số nhân tử Lagrange trước rồi gán bằng lệnh let (tránh lỗi hậu tố .dual)
+param nhan_tu_lambda {1..so_mat_xich};
+param nhan_tu_mu_x;
+param nhan_tu_mu_y;
+
+let {k in 1..so_mat_xich} nhan_tu_lambda[k] := DoDaiMatXich[k].dual;
+let nhan_tu_mu_x := DiemCuoiX.dual;
+let nhan_tu_mu_y := DiemCuoiY.dual;
+
+printf "Các nhân tử đối ngẫu (Nhân tử Lagrange từ AMPL .dual):\n";
+printf "Nhân tử DiemCuoiX (nhan_tu_mu_x) = %12.6f\n", nhan_tu_mu_x;
+printf "Nhân tử DiemCuoiY (nhan_tu_mu_y) = %12.6f\n", nhan_tu_mu_y;
+printf "%-6s %18s %18s %18s\n", "k", "he_so_c[k]", "lambda[k]", "-2*lambda[k]";
+for {k in 1..so_mat_xich} {
+    printf "%-6d %18.6f %18.6f %18.6f\n", k, he_so_c[k], nhan_tu_lambda[k], -2 * nhan_tu_lambda[k];
+}
+
+printf "\nSai số dừng của đạo hàm Lagrange (phải xấp xỉ 0 tại điểm KKT):\n";
+printf "%-6s %22s %22s\n", "k", "|dL/dx_k|", "|dL/dy_k|";
+for {k in 1..so_mat_xich} {
+    printf "%-6d %22.6e %22.6e\n", 
+        k, 
+        abs(2 * nhan_tu_lambda[k] * x[k] + nhan_tu_mu_x),
+        abs(he_so_c[k] - 2 * nhan_tu_lambda[k] * y[k] - nhan_tu_mu_y);
+}
+
+printf "\n------------------------------------------------------------------\n";
+printf "          KIỂM TRA ĐIỀU KIỆN ĐỦ TỐI ƯU BẬC HAI (SOSC)            \n";
+printf "------------------------------------------------------------------\n";
+# Ma trận Hessian của hàm Lagrange:
+# d^2 L / d x_k^2 = - 2 * lambda_k
+# d^2 L / d y_k^2 = - 2 * lambda_k
+# Tất cả các đạo hàm chéo đều bằng 0.
+# Do đó ma trận Hessian là ma trận đường chéo diag(-2*lambda_1, ..., -2*lambda_m, -2*lambda_1, ..., -2*lambda_m).
+# Nếu -2*lambda_k >= 0 với mọi k và độ cong d^T * nabla^2 L * d > 0 trên không gian tiếp tuyến,
+# điều kiện đủ bậc hai (SOSC) được thỏa mãn nghiêm ngặt.
+
+printf "Các phần tử trên đường chéo chính của ma trận Hessian (-2 * lambda_k):\n";
+for {k in 1..so_mat_xich} {
+    printf "  Mắt xích %d: -2 * lambda[%d] = %12.6f\n", k, k, -2 * nhan_tu_lambda[k];
+}
+
+# Xuất tọa độ các khớp nối ra tệp văn bản để vẽ đồ thị minh họa
+printf "# Khop X Y\n" > toa_do_xich_co_ban.txt;
+printf "0 0.0 0.0\n" >> toa_do_xich_co_ban.txt;
+for {k in 1..so_mat_xich} {
+    printf "%d %12.6f %12.6f\n", k, sum {i in 1..k} x[i], sum {i in 1..k} y[i] >> toa_do_xich_co_ban.txt;
+}
+printf "\nĐã xuất tọa độ các khớp nối ra tệp 'toa_do_xich_co_ban.txt'.\n";
